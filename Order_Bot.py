@@ -2,11 +2,12 @@ import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 import csv
+import os
 import json
 from datetime import datetime
 import re
 
-
+#Nov 20 12:00 PM
 # Enable logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -120,7 +121,6 @@ class OrderBot:
         summary = f"{current_date}\n#\n{customer_name}\n\n"
         
         for item in order['items']:
-            # Convert quantity to integer if it's a whole number
             quantity = item['quantity']
             quantity_str = str(int(quantity)) if quantity.is_integer() else str(quantity)
             summary += f"#{item['code']} / {quantity_str} P {self.item_catalog[item['code']]['name']} = {self.format_price(item['total_price'])}\n"
@@ -173,10 +173,20 @@ async def handle_customer_name(update: Update, context: ContextTypes.DEFAULT_TYP
     customer_info = order_bot.customer_data.get(customer_name.lower(), None)
     
     if not customer_info:
-        # Handle new customer
-        with open('new_customers.csv', mode='a', newline='') as file:
-            csv_writer = csv.writer(file)
-            csv_writer.writerow([customer_name_formatted])
+        try:
+            # Check if new_customers.csv exists, if not create with header
+            file_exists = os.path.isfile('new_customers.csv')
+            
+            with open('new_customers.csv', mode='a', newline='', encoding='utf-8') as file:
+                csv_writer = csv.writer(file)
+                if not file_exists:
+                    csv_writer.writerow(['customer_name'])
+                
+                # Write only the customer name
+                csv_writer.writerow([customer_name_formatted])
+            logger.info(f"New customer added to new_customers.csv: {customer_name_formatted}")
+        except Exception as e:
+            logger.error(f"Error writing to new_customers.csv: {str(e)}")
     
     # Initialize new order for this user
     order_bot.current_orders[user_id] = {
@@ -187,10 +197,9 @@ async def handle_customer_name(update: Update, context: ContextTypes.DEFAULT_TYP
     await update.message.reply_text(
         f"Starting order for {customer_name_formatted}\n"
         "Enter items in format: ITEMCODE QUANTITY\n"
-        "Example: S755 1\n"
-        "Type 'done' to complete the order or 'cancel' to cancel."
     )
     return ITEM_INPUT
+    
 
 async def handle_item_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip().upper()
@@ -230,7 +239,6 @@ async def handle_item_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'total_price': total_price
         })
         
-        # Format quantity to remove decimal if it's a whole number
         quantity_str = str(int(quantity)) if quantity.is_integer() else str(quantity)
         
         await update.message.reply_text(
@@ -240,7 +248,6 @@ async def handle_item_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except ValueError as e:
         await update.message.reply_text(
             "Invalid format. Please use: ITEMCODE QUANTITY\n"
-            "Example: S755 1"
         )
     
     return ITEM_INPUT
@@ -252,11 +259,11 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 def main():
-    # Replace 'YOUR_BOT_TOKEN' with the token you get from BotFather
     application = Application.builder().token('7249575537:AAFcJr9nKa0auzhMGRbUJZ_kOqijbazr8Uw').build()
     
+    # Changed from 'start' to 's' in the CommandHandler
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
+        entry_points=[CommandHandler('s', start)],
         states={
             CUSTOMER_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_customer_name)],
             ITEM_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_item_input)]
@@ -266,7 +273,6 @@ def main():
     
     application.add_handler(conv_handler)
     
-    # Start the bot
     print("Bot is starting...")
     application.run_polling()
 
