@@ -7,7 +7,6 @@ from datetime import datetime
 import re
 
 
-# test test test
 # Enable logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -121,7 +120,10 @@ class OrderBot:
         summary = f"{current_date}\n#\n{customer_name}\n\n"
         
         for item in order['items']:
-            summary += f"#{item['code']} / {item['quantity']} P {self.item_catalog[item['code']]['name']} = {self.format_price(item['total_price'])}\n"
+            # Convert quantity to integer if it's a whole number
+            quantity = item['quantity']
+            quantity_str = str(int(quantity)) if quantity.is_integer() else str(quantity)
+            summary += f"#{item['code']} / {quantity_str} P {self.item_catalog[item['code']]['name']} = {self.format_price(item['total_price'])}\n"
         
         if total_sum <= 500:
             summary += "\nSmall Shipping $25\n"
@@ -228,9 +230,11 @@ async def handle_item_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'total_price': total_price
         })
         
+        # Format quantity to remove decimal if it's a whole number
+        quantity_str = str(int(quantity)) if quantity.is_integer() else str(quantity)
+        
         await update.message.reply_text(
-            f"Added: {item_code} - {quantity}P - {order_bot.format_price(total_price)}\n"
-            f"Enter next item or type 'done' to complete order."
+            f"Added: {item_code} - {quantity_str} P - {order_bot.format_price(total_price)}\n"
         )
         
     except ValueError as e:
